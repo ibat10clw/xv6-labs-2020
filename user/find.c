@@ -59,6 +59,8 @@ void find(char *path, char *target)
         default:
             break;
     }
+    close(fd);
+    return;
 }
 
 int main(int argc, char *argv[])
