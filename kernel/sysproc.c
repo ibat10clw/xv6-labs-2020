@@ -95,3 +95,14 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64 sys_trace(void) {
+  int mask;
+  // arg has 2 stage, one push arg to memory, others return the state
+  if (argint(0, &mask) < 0) {
+    return -1;
+  }
+  myproc()->tmask = mask;
+  return 0;
+}

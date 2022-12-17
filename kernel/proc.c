@@ -274,7 +274,8 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
+  //printf("mask :%d\n", np->tmask);
+  np->tmask = p->tmask;
   np->parent = p;
 
   // copy saved user registers.

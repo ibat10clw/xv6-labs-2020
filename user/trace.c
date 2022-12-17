@@ -18,7 +18,7 @@ main(int argc, char *argv[])
     fprintf(2, "%s: trace failed\n", argv[0]);
     exit(1);
   }
-  
+  //printf("%d\n", trace(487));
   for(i = 2; i < argc && i < MAXARG; i++){
     nargv[i-2] = argv[i];
   }
