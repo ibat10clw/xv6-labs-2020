@@ -128,7 +128,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_trace]   sys_trace
+[SYS_trace]   sys_trace,
 };
 
 void
@@ -144,7 +144,7 @@ syscall(void)
     "chdir", "dup", "getpid", "sbrk",
     "sleep", "uptime", "open", "write",
     "mknod", "unlink", "link", "mkdir",
-    "close", "trace"
+    "close", "trace", "sysinfo"
   };
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
@@ -156,6 +156,7 @@ syscall(void)
       p->trapframe->a0);
     }
   } else {
+    // the message only output when the system call is unregistered
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
