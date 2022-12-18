@@ -694,3 +694,18 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+uint64 ps() {
+  struct proc *p;
+  uint64 cnt = 0;
+  for(p = proc; p < proc + NPROC; ++p) {
+    acquire(&p->lock);
+    // beside UNUSED, all states mean the proc is alive
+    if(p->state != UNUSED) {
+      cnt++;
+    }
+    release(&p->lock);
+  }
+  return cnt; 
+}
