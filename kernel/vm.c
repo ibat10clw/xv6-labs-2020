@@ -440,3 +440,24 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+// pagetable_t is a pointer, it record a starting address of a page table
+void vmprint(pagetable_t pagetable, uint8 level) {
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V) {
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      if (level == 2) {
+        printf("..");
+      } else if (level == 1) {
+        printf(".. ..");
+      } else if (level == 0) {
+        printf(".. .. ..");
+      }
+      printf("%d: pte %p pa %p\n", i, pte, child);
+      if (level)
+        vmprint((pagetable_t) child, level-1);
+    }
+  }  
+}
