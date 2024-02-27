@@ -20,6 +20,7 @@ static void wakeup1(struct proc *chan);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
+extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 // initialize the proc table at boot time.
 void
@@ -37,6 +38,7 @@ procinit(void)
       char *pa = kalloc();
       if(pa == 0)
         panic("kalloc");
+      // Calculate virtual address for kernel stack, incrementing by 8192 on each iteration
       uint64 va = KSTACK((int) (p - proc));
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
@@ -121,6 +123,20 @@ found:
     return 0;
   }
 
+  p->kpagetable = proc_kpagetable(p);
+  if (p->kpagetable == 0) {
+    freeproc(p);
+    proc_freepagetable(p->pagetable, p->sz);
+    release(&p->lock);
+  }
+
+  for(struct proc *pp = proc; pp < &proc[NPROC]; pp++) {
+      // Map kernel stack to virtual address created in procinit.
+      // Calculate virtual address for kernel stack, incrementing by 8192 on each iteration
+      uint64 va = KSTACK((int) (pp - proc));
+      mappages(p->kpagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W)      ;
+  }
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -185,6 +201,39 @@ proc_pagetable(struct proc *p)
   return pagetable;
 }
 
+pagetable_t
+proc_kpagetable(struct proc *p)
+{
+  pagetable_t pagetable;
+
+  // An empty page table.
+  pagetable = uvmcreate();
+  if(pagetable == 0)
+    return 0;
+  memset(pagetable, 0, PGSIZE);
+
+  
+  if (mappages(pagetable, UART0, PGSIZE, UART0, PTE_R | PTE_W) != 0)
+    goto bad;
+  if (mappages(pagetable, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W) != 0)
+    goto bad;
+  if (mappages(pagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W) != 0)
+    goto bad;
+  if (mappages(pagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W) != 0)
+    goto bad;
+  if (mappages(pagetable, KERNBASE, (uint64)etext-KERNBASE, KERNBASE, PTE_R | PTE_X) != 0)
+    goto bad;
+  if (mappages(pagetable, (uint64)etext, PHYSTOP-(uint64)etext, (uint64)etext, PTE_R | PTE_W) != 0)
+    goto bad;
+  if (mappages(pagetable, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) != 0)
+    goto bad;
+  
+  return pagetable;
+
+  bad:
+    kfree(pagetable);
+    return 0;
+}
 // Free a process's page table, and free the
 // physical memory it refers to.
 void
@@ -473,8 +522,10 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        w_satp(MAKE_SATP(p->kpagetable));
+        sfence_vma();
         swtch(&c->context, &p->context);
-
+        kvminithart();
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
@@ -485,6 +536,7 @@ scheduler(void)
     }
 #if !defined (LAB_FS)
     if(found == 0) {
+      kvminithart();
       intr_on();
       asm volatile("wfi");
     }

@@ -122,6 +122,16 @@ exec(char *path, char **argv)
     printf("done\n");
   }
 
+  #ifdef CMPPGTBL
+  extern pagetable_t kernel_pagetable;
+  if (p->pid == 1) {
+    printf("kernel page table %p\n", kernel_pagetable);
+    vmprint(kernel_pagetable, 2);
+
+    printf("user kpagetable %p\n", p->kpagetable);
+    vmprint(p->kpagetable, 2);
+  }
+  #endif
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
