@@ -157,6 +157,10 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  if (p->kpagetable) {
+    proc_freekpagetable(p->kpagetable, p->sz);
+  }
+  
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -231,6 +235,7 @@ proc_kpagetable(struct proc *p)
   return pagetable;
 
   bad:
+    proc_freekpagetable(pagetable, 0);
     kfree(pagetable);
     return 0;
 }
@@ -243,7 +248,12 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
 }
-
+// Free a process's kernel pagetable, don't free the memory
+// of kernel relative address
+void
+proc_freekpagetable(pagetable_t pagetable, uint64 sz) {
+  uvmfree(pagetable, 0);
+}
 // a user program that calls exec("/init")
 // od -t xC initcode
 uchar initcode[] = {
