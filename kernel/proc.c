@@ -123,8 +123,8 @@ found:
     return 0;
   }
 
-  p->kpagetable = proc_kpagetable(p);
-  if (p->kpagetable == 0) {
+  p->kernel_pagetable = proc_kernel_pagetable(p);
+  if (p->kernel_pagetable == 0) {
     freeproc(p);
     proc_freepagetable(p->pagetable, p->sz);
     release(&p->lock);
@@ -134,7 +134,7 @@ found:
       // Map kernel stack to virtual address created in procinit.
       // Calculate virtual address for kernel stack, incrementing by 8192 on each iteration
       uint64 va = KSTACK((int) (pp - proc));
-      mappages(p->kpagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W)      ;
+      mappages(p->kernel_pagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W)      ;
   }
 
   // Set up new context to start executing at forkret,
@@ -157,8 +157,8 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
-  if (p->kpagetable) {
-    proc_freekpagetable(p->kpagetable, p->sz);
+  if (p->kernel_pagetable) {
+    proc_freekernel_pagetable(p->kernel_pagetable, p->sz);
   }
   
   p->pagetable = 0;
@@ -206,7 +206,7 @@ proc_pagetable(struct proc *p)
 }
 
 pagetable_t
-proc_kpagetable(struct proc *p)
+proc_kernel_pagetable(struct proc *p)
 {
   pagetable_t pagetable;
 
@@ -235,7 +235,7 @@ proc_kpagetable(struct proc *p)
   return pagetable;
 
   bad:
-    proc_freekpagetable(pagetable, 0);
+    proc_freekernel_pagetable(pagetable, 0);
     kfree(pagetable);
     return 0;
 }
@@ -251,7 +251,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 // Free a process's kernel pagetable, don't free the memory
 // of kernel relative address
 void
-proc_freekpagetable(pagetable_t pagetable, uint64 sz) {
+proc_freekernel_pagetable(pagetable_t pagetable, uint64 sz) {
   uvmfree(pagetable, 0);
 }
 // a user program that calls exec("/init")
@@ -532,7 +532,7 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
-        w_satp(MAKE_SATP(p->kpagetable));
+        w_satp(MAKE_SATP(p->kernel_pagetable));
         sfence_vma();
         swtch(&c->context, &p->context);
         kvminithart();

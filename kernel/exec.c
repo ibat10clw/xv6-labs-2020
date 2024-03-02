@@ -128,8 +128,8 @@ exec(char *path, char **argv)
     printf("kernel page table %p\n", kernel_pagetable);
     vmprint(kernel_pagetable, 2);
 
-    printf("user kpagetable %p\n", p->kpagetable);
-    vmprint(p->kpagetable, 2);
+    printf("user kernel_pagetable %p\n", p->kernel_pagetable);
+    vmprint(p->kernel_pagetable, 2);
   }
   #endif
   return argc; // this ends up in a0, the first argument to main(argc, argv)
