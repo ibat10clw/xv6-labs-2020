@@ -19,6 +19,7 @@ exec(char *path, char **argv)
   struct inode *ip;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
+  pagetable_t kernel_pagetable = 0, oldkernel_pagetable;
   struct proc *p = myproc();
 
   begin_op();
@@ -37,6 +38,8 @@ exec(char *path, char **argv)
 
   if((pagetable = proc_pagetable(p)) == 0)
     goto bad;
+  if ((kernel_pagetable = proc_kernel_pagetable(p)) == 0)
+    goto bad;
 
   // Load program into memory.
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
@@ -49,7 +52,7 @@ exec(char *path, char **argv)
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
     uint64 sz1;
-    if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
+    if((sz1 = uvmalloc(pagetable, kernel_pagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     sz = sz1;
     if(ph.vaddr % PGSIZE != 0)
@@ -68,13 +71,20 @@ exec(char *path, char **argv)
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
   uint64 sz1;
-  if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0)
+  if((sz1 = uvmalloc(pagetable, kernel_pagetable, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   sz = sz1;
   uvmclear(pagetable, sz-2*PGSIZE);
   sp = sz;
   stackbase = sp - PGSIZE;
-
+  // Map kernel stack
+  extern struct proc proc[];
+  for(struct proc *pp = proc; pp < &proc[NPROC]; pp++) {
+      // Map kernel stack to virtual address created in procinit.
+      // Calculate virtual address for kernel stack, incrementing by 8192 on each iteration
+      uint64 va = KSTACK((int) (pp - proc));
+      mappages(kernel_pagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W);
+  }
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
@@ -110,11 +120,17 @@ exec(char *path, char **argv)
     
   // Commit to the user image.
   oldpagetable = p->pagetable;
+  oldkernel_pagetable = p->kernel_pagetable;
   p->pagetable = pagetable;
+  p->kernel_pagetable = kernel_pagetable;
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+
+  w_satp(MAKE_SATP(p->kernel_pagetable));
+  sfence_vma();
+  proc_freekernel_pagetable(oldkernel_pagetable, oldsz);
 
   if (p->pid == 1) {
     printf("page table %p\n", pagetable);
@@ -137,6 +153,8 @@ exec(char *path, char **argv)
  bad:
   if(pagetable)
     proc_freepagetable(pagetable, sz);
+  if (kernel_pagetable)
+    proc_freekernel_pagetable(kernel_pagetable, sz);
   if(ip){
     iunlockput(ip);
     end_op();

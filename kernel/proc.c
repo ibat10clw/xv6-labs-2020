@@ -221,8 +221,6 @@ proc_kernel_pagetable(struct proc *p)
     goto bad;
   if (mappages(pagetable, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W) != 0)
     goto bad;
-  if (mappages(pagetable, CLINT, 0x10000, CLINT, PTE_R | PTE_W) != 0)
-    goto bad;
   if (mappages(pagetable, PLIC, 0x400000, PLIC, PTE_R | PTE_W) != 0)
     goto bad;
   if (mappages(pagetable, KERNBASE, (uint64)etext-KERNBASE, KERNBASE, PTE_R | PTE_X) != 0)
@@ -236,7 +234,6 @@ proc_kernel_pagetable(struct proc *p)
 
   bad:
     proc_freekernel_pagetable(pagetable, 0);
-    kfree(pagetable);
     return 0;
 }
 // Free a process's page table, and free the
@@ -277,7 +274,7 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  uvminit(p->pagetable, initcode, sizeof(initcode));
+  uvminit(p->pagetable, proc->kernel_pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
@@ -302,11 +299,11 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
+    if(sz + n >= PLIC || (sz = uvmalloc(p->pagetable,p->kernel_pagetable, sz, sz + n)) == 0) {
       return -1;
     }
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    sz = uvmdealloc(p->pagetable,p->kernel_pagetable, sz, sz + n);
   }
   p->sz = sz;
   return 0;
@@ -327,7 +324,7 @@ fork(void)
   }
 
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  if(uvmcopy(p->pagetable, np->pagetable, np->kernel_pagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
