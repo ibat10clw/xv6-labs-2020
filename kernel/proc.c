@@ -126,15 +126,19 @@ found:
   p->kernel_pagetable = proc_kernel_pagetable(p);
   if (p->kernel_pagetable == 0) {
     freeproc(p);
-    proc_freepagetable(p->pagetable, p->sz);
     release(&p->lock);
+    return 0;
   }
 
   for(struct proc *pp = proc; pp < &proc[NPROC]; pp++) {
       // Map kernel stack to virtual address created in procinit.
       // Calculate virtual address for kernel stack, incrementing by 8192 on each iteration
       uint64 va = KSTACK((int) (pp - proc));
-      mappages(p->kernel_pagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W)      ;
+      if (mappages(p->kernel_pagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W) != 0) {
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+      }
   }
 
   // Set up new context to start executing at forkret,
@@ -158,9 +162,10 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   if (p->kernel_pagetable) {
-    proc_freekernel_pagetable(p->kernel_pagetable, p->sz);
+    proc_freekernel_pagetable(p->kernel_pagetable);
   }
   
+  p->kernel_pagetable = 0;
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -214,8 +219,6 @@ proc_kernel_pagetable(struct proc *p)
   pagetable = uvmcreate();
   if(pagetable == 0)
     return 0;
-  memset(pagetable, 0, PGSIZE);
-
   
   if (mappages(pagetable, UART0, PGSIZE, UART0, PTE_R | PTE_W) != 0)
     goto bad;
@@ -233,7 +236,7 @@ proc_kernel_pagetable(struct proc *p)
   return pagetable;
 
   bad:
-    proc_freekernel_pagetable(pagetable, 0);
+    proc_freekernel_pagetable(pagetable);
     return 0;
 }
 // Free a process's page table, and free the
@@ -248,7 +251,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 // Free a process's kernel pagetable, don't free the memory
 // of kernel relative address
 void
-proc_freekernel_pagetable(pagetable_t pagetable, uint64 sz) {
+proc_freekernel_pagetable(pagetable_t pagetable) {
   uvmfree(pagetable, 0);
 }
 // a user program that calls exec("/init")

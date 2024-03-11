@@ -83,7 +83,9 @@ exec(char *path, char **argv)
       // Map kernel stack to virtual address created in procinit.
       // Calculate virtual address for kernel stack, incrementing by 8192 on each iteration
       uint64 va = KSTACK((int) (pp - proc));
-      mappages(kernel_pagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W);
+      if (mappages(kernel_pagetable, va, PGSIZE, kvmpa(pp->kstack), PTE_R | PTE_W) != 0) {
+        goto bad;
+      }
   }
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
@@ -130,7 +132,7 @@ exec(char *path, char **argv)
 
   w_satp(MAKE_SATP(p->kernel_pagetable));
   sfence_vma();
-  proc_freekernel_pagetable(oldkernel_pagetable, oldsz);
+  proc_freekernel_pagetable(oldkernel_pagetable);
 
   if (p->pid == 1) {
     printf("page table %p\n", pagetable);
@@ -154,7 +156,7 @@ exec(char *path, char **argv)
   if(pagetable)
     proc_freepagetable(pagetable, sz);
   if (kernel_pagetable)
-    proc_freekernel_pagetable(kernel_pagetable, sz);
+    proc_freekernel_pagetable(kernel_pagetable);
   if(ip){
     iunlockput(ip);
     end_op();
