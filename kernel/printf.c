@@ -121,6 +121,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -131,4 +132,19 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace()
+{
+  printf("backtrace\n");
+  uint64 *fp = (uint64 *)r_fp();
+  uint64 *sp = (uint64 *)r_sp();
+  
+  // kernel stack's size is 1 page, check the page boundary to terminate the loop
+  while ((uint64)fp >= PGROUNDDOWN((uint64)sp) && (uint64)fp < PGROUNDUP((uint64)sp)) {
+    uint64 *retadr = fp - 1;
+    printf("%p\n", *retadr);  
+    fp = (uint64 *)*(fp - 2);
+  }
 }
