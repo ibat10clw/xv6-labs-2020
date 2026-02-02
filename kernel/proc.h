@@ -103,4 +103,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  uint64 handler;              // Store the alarm handler (user program)
+  int interval;	               // The alarm interval
+  int alarm_countdown;         // Initialize to interval, trigger alarm when this value is zero, and reset it
 };

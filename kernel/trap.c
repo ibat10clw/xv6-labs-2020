@@ -67,6 +67,14 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+    // In xv6 address 0 may be used, so can't not check this val
+    // we check the interval to determine wether the alarm has been set
+    if (which_dev == 2 && p->interval != 0) {
+      if (--p->alarm_countdown == 0) {
+        p->alarm_countdown = p->interval;
+	p->trapframe->epc = (uint64)p->handler;
+      }
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
