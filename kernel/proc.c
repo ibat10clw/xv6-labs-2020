@@ -277,7 +277,7 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  uvminit(p->pagetable, proc->kernel_pagetable, initcode, sizeof(initcode));
+  uvminit(p->pagetable, p->kernel_pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
