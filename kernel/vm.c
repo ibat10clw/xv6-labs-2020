@@ -326,8 +326,14 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t _new, uint64 sz)
     if((mem = kalloc()) == 0)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0 || mappages(_new, i, PGSIZE, (uint64)mem, flags & ~PTE_U) != 0){
+    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
+      goto err;
+    }
+    if (mappages(_new, i, PGSIZE, (uint64)mem, flags & ~PTE_U) != 0) {
+      kfree(mem);
+      // Undo the user pagetable mapping
+      uvmunmap(new, i, 1, 0);
       goto err;
     }
   }
