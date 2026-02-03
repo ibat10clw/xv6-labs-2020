@@ -129,6 +129,8 @@ found:
   p->interval = 0;
   p->alarm_countdown = 0;
   p->handler = -1;
+  memset(&p->user_context, 0, sizeof(p->context));
+  p->in_handler = 0;
   return p;
 }
 
